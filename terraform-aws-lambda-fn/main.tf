@@ -36,26 +36,8 @@ data "aws_iam_policy_document" "assume_role" {
   }
 }
 
-resource "aws_iam_role" "this" {
-  name               = coalesce(var.role_name, "${var.function_name}-role")
-  assume_role_policy = data.aws_iam_policy_document.assume_role.json
-  tags               = local.tags
-}
-
-# Attach basic execution policy (writes to CloudWatch Logs)
-resource "aws_iam_role_policy_attachment" "basic_exec" {
-  role       = aws_iam_role.this.name
-  policy_arn = "arn:${data.aws_partition.current.partition}:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
-}
-
-# Optional: VPC execution policy if vpc_config provided
-data "aws_partition" "current" {}
-
-resource "aws_iam_role_policy_attachment" "vpc_exec" {
-  count      = var.vpc_config == null ? 0 : 1
-  role       = aws_iam_role.this.name
-  policy_arn = "arn:${data.aws_partition.current.partition}:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
-}
+# # Optional: VPC execution policy if vpc_config provided
+# data "aws_partition" "current" {}
 
 # CloudWatch log group (optional but recommended for retention control)
 resource "aws_cloudwatch_log_group" "this" {
@@ -71,7 +53,7 @@ resource "aws_lambda_function" "this" {
   handler       = var.handler
   runtime       = var.runtime
 
-  role = var.role_arn != null ? var.role_arn : aws_iam_role.this.arn
+  role = var.role_arn
 
   # Ensures updates when ZIP changes
   source_code_hash = filebase64sha256(var.filename)
@@ -132,7 +114,6 @@ resource "aws_lambda_function" "this" {
   tags = local.tags
 
   depends_on = [
-    aws_iam_role_policy_attachment.basic_exec,
     aws_cloudwatch_log_group.this
   ]
 }
